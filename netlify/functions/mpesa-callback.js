@@ -43,7 +43,7 @@ exports.handler = async (event) => {
 `);
 
         // TODO: Replace with your actual Google Apps Script URL
-        const googleScriptUrl = "https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec";
+        const googleScriptUrl = "https://script.google.com/macros/s/AKfycbxARLoSRwwFpZC8ZwXSmQZPOYHEWIwCLdIPqxIKmy2jFjRwml759aL86oxqWu9jqn0W/exec";
         
         // Prepare data to send to Google Apps Script
         const updateData = {
