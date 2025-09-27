@@ -1,115 +1,86 @@
-// netlify/functions/mpesa-callback.js
+// netlify/functions/mpesa-callback.js - UPDATED VERSION
+const fetch = require('node-fetch');
+
 exports.handler = async (event) => {
-  console.log(" M-Pesa Callback Received!");
+  console.log('📱 M-Pesa Callback Received!');
   
   // Only allow POST requests
-  if (event.httpMethod !== "POST") {
+  if (event.httpMethod !== 'POST') {
     return {
       statusCode: 405,
-      body: JSON.stringify({ error: "Method Not Allowed" })
+      body: JSON.stringify({ error: 'Method Not Allowed' })
     };
   }
 
   try {
-    // Parse the incoming M-Pesa callback
-    const callbackData = JSON.parse(event.body);
-    console.log(" Callback Data:", JSON.stringify(callbackData, null, 2));
-
-    // Check if this is a valid STK callback
-    if (callbackData.Body && callbackData.Body.stkCallback) {
-      const stkCallback = callbackData.Body.stkCallback;
-      
-      // Payment successful
-      if (stkCallback.ResultCode === 0) {
-        console.log(" Payment Successful!");
-        
-        // Extract payment details
-        const metadata = stkCallback.CallbackMetadata;
-        let amount, mpesaReceipt, phoneNumber;
-        
-        if (metadata && metadata.Item) {
-          metadata.Item.forEach(item => {
-            if (item.Name === "Amount") amount = item.Value;
-            if (item.Name === "MpesaReceiptNumber") mpesaReceipt = item.Value;
-            if (item.Name === "PhoneNumber") phoneNumber = item.Value;
-          });
-        }
-
-        console.log(` Payment Details:
-  Amount: ${amount} KSh
-  Receipt: ${mpesaReceipt}
-  Phone: ${phoneNumber}
-  CheckoutID: ${stkCallback.CheckoutRequestID}
-`);
-
-        // TODO: Replace with your actual Google Apps Script URL
-        const googleScriptUrl = "https://script.google.com/macros/s/AKfycbxARLoSRwwFpZC8ZwXSmQZPOYHEWIwCLdIPqxIKmy2jFjRwml759aL86oxqWu9jqn0W/exec";
-        
-        // Prepare data to send to Google Apps Script
-        const updateData = {
-          action: "updateHotDealStatus",
-          checkoutRequestId: stkCallback.CheckoutRequestID,
-          status: "paid",
-          mpesaReceipt: mpesaReceipt,
-          amount: amount,
-          phone: phoneNumber
-        };
-
-        // Send to Google Apps Script
-        try {
-          const response = await fetch(googleScriptUrl, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify(updateData)
-          });
-          
-          const result = await response.text();
-          console.log(" Sent to Google Apps Script:", result);
-        } catch (googleError) {
-          console.error(" Error sending to Google Apps Script:", googleError);
-        }
-
-        return {
-          statusCode: 200,
-          body: JSON.stringify({ 
-            success: true, 
-            message: "Payment processed successfully",
-            receipt: mpesaReceipt
-          })
-        };
-      } else {
-        // Payment failed
-        console.error(" Payment Failed:", stkCallback.ResultDesc);
-        
-        return {
-          statusCode: 200,
-          body: JSON.stringify({ 
-            success: false, 
-            message: "Payment failed: " + stkCallback.ResultDesc
-          })
-        };
-      }
+    console.log('📦 Raw body:', event.body);
+    
+    let callbackData;
+    try {
+      callbackData = JSON.parse(event.body);
+      console.log('✅ Parsed JSON successfully');
+    } catch (parseError) {
+      console.error('❌ JSON parse error:', parseError);
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ error: 'Invalid JSON' })
+      };
     }
 
-    // If it's not an STK callback, just acknowledge receipt
-    return {
-      statusCode: 200,
-      body: JSON.stringify({ 
-        success: true, 
-        message: "Callback received (not STK)" 
-      })
+    // Log the received data
+    console.log('📋 Callback Data:', JSON.stringify(callbackData, null, 2));
+
+    // Test Google Apps Script connection with simple data
+    const googleScriptUrl = "https://script.google.com/macros/s/AKfycbxARLoSRwwFpZC8ZwXSmQZPOYHEWIwCLdIPqxIKmy2jFjRwml759aL86oxqWu9jqn0W/exec";
+    
+    const testPayload = {
+      action: "testConnection",
+      message: "Testing connection from Netlify",
+      receivedData: callbackData,
+      timestamp: new Date().toISOString()
     };
 
-  } catch (error) {
-    console.error(" Error processing callback:", error);
+    console.log('🔄 Sending to Google Apps Script...');
     
+    try {
+      const response = await fetch(googleScriptUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(testPayload)
+      });
+      
+      const resultText = await response.text();
+      console.log('✅ Google Apps Script response:', resultText);
+      
+      return {
+        statusCode: 200,
+        body: JSON.stringify({ 
+          success: true, 
+          message: "Callback processed successfully",
+          googleResponse: resultText
+        })
+      };
+      
+    } catch (fetchError) {
+      console.error('❌ Fetch error:', fetchError);
+      return {
+        statusCode: 200,
+        body: JSON.stringify({ 
+          success: false, 
+          error: 'Failed to connect to Google Apps Script: ' + fetchError.message 
+        })
+      };
+    }
+
+  } catch (error) {
+    console.error('❌ Unexpected error:', error);
     return {
       statusCode: 200,
       body: JSON.stringify({ 
         success: false, 
-        error: "Error processing callback" 
+        error: 'Unexpected error: ' + error.message 
       })
     };
   }
